@@ -12,7 +12,10 @@ namespace WebScrapper
         {
             using (var context = new RealEstateContext())
             {
+
+                context.Database.EnsureCreated();
                 var re = context.RealEstates.ToArray();
+                
                 Console.WriteLine($"We have {re.Length} car(s).");
             }
 

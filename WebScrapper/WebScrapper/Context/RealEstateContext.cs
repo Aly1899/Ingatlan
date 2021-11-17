@@ -12,9 +12,9 @@ namespace WebScrapper.Context
         public DbSet<FetchDate> FetchDates { get; set; }
         public DbSet<AdPrice> AdPrices { get; set; }
 
-        public RealEstateContext(DbContextOptions<RealEstateContext> options) : base(options)
-        {
-        }
+        //public RealEstateContext(DbContextOptions<RealEstateContext> options) : base(options)
+        //{
+        //}
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<RealEstate>().HasKey(r=>r.RealEstateId);
