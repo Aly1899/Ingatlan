@@ -12,6 +12,9 @@ namespace WebScrapper.Context
         public DbSet<FetchDate> FetchDates { get; set; }
         public DbSet<AdPrice> AdPrices { get; set; }
 
+        public RealEstateContext(DbContextOptions<RealEstateContext> options) : base(options)
+        {
+        }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<RealEstate>().HasKey(r=>r.RealEstateId);
@@ -21,7 +24,7 @@ namespace WebScrapper.Context
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer("Data Source=DESKTOP-V9BTOJH\\SQLEXPRESS;Initial Catalog=realestate;Integrated Security=True");
+            optionsBuilder.UseNpgsql("Server=localhost;Port=5432;Database=ingatlan;User Id=postgres;Password=admin;");
         }
     }
 }
