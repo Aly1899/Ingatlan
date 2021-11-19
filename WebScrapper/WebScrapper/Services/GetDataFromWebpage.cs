@@ -12,6 +12,21 @@ namespace WebScrapper.Services
 {
     public class GetDataFromWebpage
     {
+        public ScrapData _scrapData { get; set; }
+
+        public ScrapData ScrapData
+        {
+            get
+            {
+                return _scrapData;
+            }
+
+            set
+            {
+                _scrapData = value;
+            }
+        }
+
         public async Task GetData(string url)
         {
 
@@ -32,6 +47,7 @@ namespace WebScrapper.Services
                     scrapData.RealEstates.Add(RealEstateMapper(nodes[i], estateType));
                 }
             }
+            _scrapData.RealEstates = scrapData.RealEstates;
         }
         public async Task<HtmlDocument> GetAdHtmlDocument(HttpClient client, string url, int page)
         {
