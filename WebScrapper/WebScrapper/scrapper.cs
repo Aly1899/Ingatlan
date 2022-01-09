@@ -1,14 +1,10 @@
 ﻿using HtmlAgilityPack;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using WebScrapper.Context;
 using WebScrapper.Models;
@@ -22,15 +18,15 @@ namespace WebScrapper
 
             using (var client = new HttpClient())
             {
-                using (var context = new RealEstateContext())
+                using (var context = new AdContext())
                 {
                     using var transaction = context.Database.BeginTransaction();
 
                     string url = "https://ingatlan.com/szukites/elado+lakas+budapest+30-50-mFt+4-szoba-felett";
                     //string url = "https://ingatlan.com/lista/elado+telek+50-mFt-ig";
                     var pages = await GetMaxPage(client, url);
-                
-                    var ads = new List<RealEstate>();
+
+                    var ads = new List<AdModel>();
 
                     //for (var p = 1; p <= pages; p++)
                     var lastFetchDate = await context.FetchDates.OrderByDescending(f => f.EntryDate).FirstOrDefaultAsync();
@@ -38,19 +34,19 @@ namespace WebScrapper
                     var newFetchId = Guid.NewGuid();
                     var estateType = Common.Constants.Plot;
                     for (var p = 1; p <= pages; p++)
-                        {
+                    {
                         Console.WriteLine($"Page: {p}");
                         var htmlDoc = await GetAdHtmlDocument(client, url, p);
                         var nodes = htmlDoc.DocumentNode.SelectNodes(".//div[contains(@class,'listing ')]");
                         for (int i = 0; i < nodes.Count; i++)
                         {
-                            await FillAd(estateType, context, nodes[i],newFetchId);
-                            
+                            await FillAd(estateType, context, nodes[i], newFetchId);
+
                         }
                     }
                     var t = context.ChangeTracker.HasChanges();
                     context.ChangeTracker.DetectChanges();
-                    
+
                     if (context.ChangeTracker.HasChanges())
                     {
                         var fetchDate = new FetchDate()
@@ -62,21 +58,21 @@ namespace WebScrapper
                         context.Add(fetchDate);
                     }
                     await context.SaveChangesAsync();
-                    transaction.Commit();
+                    await transaction.CommitAsync();
                 }
 
             }
         }
-        private static async Task FillAd(string estateType, RealEstateContext reContext, HtmlNode node, Guid newFetchId)
+        private static async Task FillAd(string estateType, AdContext reContext, HtmlNode node, Guid newFetchId)
         {
-            var ad = new RealEstate();
+            var ad = new AdModel();
             var adId = node.GetAttributeValue("data-id", "").ToString();
             var address = node.SelectSingleNode(".//div[@class = 'listing__address']");
-            var findAd = reContext.RealEstates.FirstOrDefault(r => r.AdId == adId && r.Address == address.InnerText.Trim());
+            var findAd = reContext.AdModels.FirstOrDefault(r => r.OrigAdId == adId && r.Address == address.InnerText.Trim());
             if (findAd == null)
             {
-                ad.RealEstateId = Guid.NewGuid();
-                ad.AdId = adId;
+                ad.AdId = Guid.NewGuid();
+                ad.OrigAdId = adId;
 
                 ad.AdType = estateType;
                 if (address != null)
@@ -87,24 +83,23 @@ namespace WebScrapper
                     {
                         ad.City = address.InnerText.Trim();
 
-                    } else
+                    }
+                    else
                     {
-                        ad.City = address.InnerText.Substring(commaIndex+1).Trim();
+                        ad.City = address.InnerText.Substring(commaIndex + 1).Trim();
                     }
                 }
 
                 var price = node.SelectSingleNode(".//div[@class = 'price']");
                 if (price != null)
                 {
-                    var newPrince = new AdPrice()
+                    var newPrince = new AdPriceModel()
                     {
                         AdPriceId = new Guid(),
-                        RealEstateId = ad.RealEstateId,
-                        AdId= ad.AdId,
-                        OldPrice = Convert.ToDecimal(price.InnerText.Split(" ")[1]),
-                        NewPrice = Convert.ToDecimal(price.InnerText.Split(" ")[1]),
+                        AdId = ad.AdId,
+                        OrigAdId = ad.OrigAdId,
+                        Price = Convert.ToDecimal(price.InnerText.Split(" ")[1]),
                         EntryDate = DateTime.UtcNow,
-                        FetchId = newFetchId
                     };
                     reContext.Add(newPrince);
                     await reContext.SaveChangesAsync();
@@ -133,11 +128,12 @@ namespace WebScrapper
                 var leasing = node.SelectSingleNode(".//div[contains(@class , 'label--alert')]");
                 ad.LeaseRights = leasing == null ? false : true;
                 ad.Date = DateTime.UtcNow;
-                reContext.RealEstates.Add(ad);
+                reContext.AdModels.Add(ad);
                 var e = reContext.ChangeTracker.Entries();
-            } else
+            }
+            else
             {
-                var adPrice = reContext.AdPrices
+                var adPrice = reContext.AdPriceModels
                     .Where(a => a.AdId == findAd.AdId)
                     .OrderByDescending(a => a.EntryDate)
                     .Take(1)
@@ -147,25 +143,23 @@ namespace WebScrapper
                 if (price != null)
                 {
                     var actualPrice = Convert.ToDecimal(price.InnerText.Split(" ")[1]);
-                    if (adPrice[0].NewPrice != actualPrice)
+                    if (adPrice[0].Price != actualPrice)
                     {
-                        var newPrice = new AdPrice()
+                        var newPrice = new AdPriceModel()
                         {
                             AdPriceId = new Guid(),
-                            RealEstateId = findAd.RealEstateId,
                             AdId = findAd.AdId,
-                            OldPrice = adPrice[0].NewPrice,
-                            NewPrice = actualPrice,
+                            OrigAdId = findAd.OrigAdId,
+                            Price = adPrice[0].Price,
                             EntryDate = DateTime.UtcNow,
-                            FetchId = newFetchId
                         };
-                        Console.WriteLine($"Price update of : {findAd.RealEstateId}");
+                        Console.WriteLine($"Price update of : {findAd.AdId}");
                         reContext.Add(newPrice);
                     }
                 }
-                
+
             }
-            
+
         }
         public static async Task<HtmlDocument> GetAdHtmlDocument(HttpClient client, string url, int page)
         {

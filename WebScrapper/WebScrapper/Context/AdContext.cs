@@ -3,25 +3,25 @@ using WebScrapper.Models;
 
 namespace WebScrapper.Context
 {
-    class RealEstateContext : DbContext
+    public class AdContext : DbContext
     {
-        public DbSet<RealEstate> RealEstates { get; set; }
+        public DbSet<AdModel> AdModels { get; set; }
         public DbSet<FetchDate> FetchDates { get; set; }
-        public DbSet<AdPrice> AdPrices { get; set; }
+        public DbSet<AdPriceModel> AdPriceModels { get; set; }
 
         //public RealEstateContext(DbContextOptions<RealEstateContext> options) : base(options)
         //{
         //}
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<RealEstate>().HasKey(r => r.RealEstateId);
+            modelBuilder.Entity<AdModel>().HasKey(r => r.AdId);
             modelBuilder.Entity<FetchDate>().HasKey(f => f.Id);
-            modelBuilder.Entity<AdPrice>().HasKey(a => a.AdPriceId);
+            modelBuilder.Entity<AdPriceModel>().HasKey(a => a.AdPriceId);
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseNpgsql("Server=localhost;Port=5432;Database=ingatlan;User Id=postgres;Password=admin;");
+            optionsBuilder.UseNpgsql("Host=localhost; Port=5432; Database=real_estate; Username=admin; Password=admin; Pooling=true");
         }
     }
 }

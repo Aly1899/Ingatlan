@@ -1,58 +1,59 @@
-﻿using HtmlAgilityPack;
+﻿using AutoMapper;
+using HtmlAgilityPack;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
+using WebScrapper.Context;
 using WebScrapper.Models;
-using Serilog;
 
 namespace WebScrapper.Services
 {
     public class GetDataFromWebpage
     {
+        private readonly HttpClient _httpClient;
+        private readonly AdContext _adContext;
+        private readonly IMapper _mapper;
         public ScrapData _scrapData { get; set; }
 
-        public ScrapData ScrapData
+        public GetDataFromWebpage(HttpClient httpClient, AdContext adContext, IMapper mapper)
         {
-            get
-            {
-                return _scrapData;
-            }
-
-            set
-            {
-                _scrapData = value;
-            }
+            _httpClient = httpClient;
+            _adContext = adContext;
+            _mapper = mapper;
         }
 
-        public async Task GetData(string url)
+        public async Task Init()
         {
+            await SaveData();
+        }
+        public async Task<List<ScrapData>> GetData(string url)
+        {
+            var pages = await GetMaxPage(_httpClient, url);
 
-            using var client = new HttpClient();
-            var pages = await GetMaxPage(client, url);
-
-            var scrapData = new ScrapData();
-            scrapData.RealEstates = new List<RealEstate>();
+            var scrapData = new List<ScrapData>();
 
             var estateType = Common.Constants.Flat;
-            for (var p = 0; p <= pages - 12; p++)
+            for (var p = 0; p <= 0; p++)
             {
-                Console.WriteLine($"Dowloaded page: {p+1}");
-                var htmlDoc = await GetAdHtmlDocument(client, url, p + 1);
+                Console.WriteLine($"Dowloaded page: {p + 1}");
+                var htmlDoc = await GetAdHtmlDocument(url, p + 1);
                 var nodes = htmlDoc.DocumentNode.SelectNodes(".//div[contains(@class,'listing ')]");
                 for (int i = 0; i < nodes.Count; i++)
                 {
-                    scrapData.RealEstates.Add(RealEstateMapper(nodes[i], estateType));
+                    scrapData.Add(RealEstateMapper(nodes[i], estateType));
                 }
             }
-            _scrapData.RealEstates = scrapData.RealEstates;
+
+            return scrapData;
+            //_scrapData.RealEstates = scrapData.RealEstates;
         }
-        public async Task<HtmlDocument> GetAdHtmlDocument(HttpClient client, string url, int page)
+        public async Task<HtmlDocument> GetAdHtmlDocument(string url, int page)
         {
             var fullUrl = $"{url}?page={page}";
-            var response = await client.GetAsync(fullUrl);
+            var response = await _httpClient.GetAsync(fullUrl);
             if (!response.IsSuccessStatusCode)
             {
                 return new HtmlDocument();
@@ -62,20 +63,20 @@ namespace WebScrapper.Services
             htmlDoc.LoadHtml(htmlBody);
             return htmlDoc;
         }
-        public async Task<int> GetMaxPage(HttpClient client, string url)
+        public async Task<int> GetMaxPage(HttpClient _httpClient, string url)
         {
-            var htmlDocForPages = await GetAdHtmlDocument(client, url, 1);
+            var htmlDocForPages = await GetAdHtmlDocument(url, 1);
             var pagesTxt = htmlDocForPages.DocumentNode.SelectSingleNode(".//*[contains(@class,'pagination__page-number')]").InnerText;
             int maxPage = Convert.ToInt32(pagesTxt.Split(" ")[3]);
             return maxPage;
         }
-        public RealEstate RealEstateMapper(HtmlNode node, string estateType)
+        public ScrapData RealEstateMapper(HtmlNode node, string estateType)
         {
-            var re = new RealEstate();
+            var re = new ScrapData();
             var reId = node.GetAttributeValue("data-id", "").ToString();
             var address = node.SelectSingleNode(".//div[@class = 'listing__address']");
-            re.RealEstateId = Guid.NewGuid();
-            re.AdId = reId;
+            re.AdId = Guid.NewGuid();
+            re.OrigAdId = reId;
             re.AdType = estateType;
             if (address != null)
             {
@@ -90,11 +91,13 @@ namespace WebScrapper.Services
                     re.City = address.InnerText.Substring(commaIndex + 1).Trim();
                 }
             }
-            var price =  node.SelectSingleNode(".//div[@class = 'price']");
+
+            var price = node.SelectSingleNode(".//div[@class = 'price']");
             if (price != null)
             {
                 re.Price = Convert.ToDecimal(price.InnerText.Split(" ")[1]);
             }
+
             var area = node.SelectSingleNode(".//div[contains(@class , 'listing__data--area-size')]");
             if (area != null)
             {
@@ -115,6 +118,56 @@ namespace WebScrapper.Services
             re.LeaseRights = leasing == null ? false : true;
             re.Date = DateTime.UtcNow;
             return re;
+        }
+
+        public async Task SaveData()
+        {
+            var adsFromWeb = await GetData("https://ingatlan.com/szukites/elado+lakas+budapest+30-50-mFt+4-szoba-felett");
+            var adsFromDb = await _adContext.AdModels.ToListAsync();
+            var priceFromDb = await _adContext.AdPriceModels.ToListAsync();
+            await using var transaction = await _adContext.Database.BeginTransactionAsync();
+
+            foreach (var adWeb in adsFromWeb)
+            {
+                var adExisted = adsFromDb.FirstOrDefault(adDb =>
+                    adDb.OrigAdId == adWeb.OrigAdId && adDb.Address == adWeb.Address);
+                if (adExisted == null)
+                {
+                    var newAd = _mapper.Map<AdModel>(adWeb);
+                    var newPrice = new AdPriceModel()
+                    {
+                        AdId = adWeb.AdId,
+                        AdPriceId = Guid.NewGuid(),
+                        OrigAdId = adWeb.OrigAdId,
+                        Price = adWeb.Price,
+                        EntryDate = DateTime.UtcNow
+                    };
+                    _adContext.Add(newAd);
+                    _adContext.Add(newPrice);
+                }
+                else
+                {
+                    var adPricesExisted = priceFromDb
+                        .Where(p => p.AdId == adExisted.AdId)
+                        .OrderByDescending(p => p.EntryDate)
+                        .ToList();
+                    if (adPricesExisted.First().Price != adWeb.Price)
+                    {
+                        var newPrice = new AdPriceModel()
+                        {
+                            AdId = adExisted.AdId,
+                            AdPriceId = Guid.NewGuid(),
+                            OrigAdId = adExisted.OrigAdId,
+                            Price = adWeb.Price,
+                            EntryDate = DateTime.UtcNow
+                        };
+                        _adContext.Add(newPrice);
+                    }
+                }
+            }
+            await _adContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
         }
 
     }

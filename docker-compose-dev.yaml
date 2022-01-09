@@ -1,0 +1,54 @@
+version: "2.1"
+
+services:
+
+  re-postgres:
+    image: re-postgres
+    container_name: re-postgres
+    build: ./env/PostgreSQL
+    ports:
+      - 5432:5432
+    restart: on-failure
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_PASSWORD=postgres
+    networks:
+      - re-network
+    volumes:
+      - ./env/PostgreSQL/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  
+  re-pgadmin:
+    image: re-pgadmin
+    container_name: re-pgadmin
+    ports:
+      - 5050:80
+    restart: on-failure
+    build: ./env/pgAdmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    depends_on:
+      re-postgres:
+        condition: service_healthy
+    networks:
+      - re-network
+
+  seq:
+    image: datalust/seq:latest
+    restart: always
+    container_name: seq
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - 5341:80
+    networks:
+      - re-network
+
+networks:
+  re-network:
+    name: re-network
