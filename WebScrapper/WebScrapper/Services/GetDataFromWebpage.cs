@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using WebScrapper.Common;
 using WebScrapper.Context;
 using WebScrapper.Models;
 
@@ -16,7 +17,6 @@ namespace WebScrapper.Services
         private readonly HttpClient _httpClient;
         private readonly AdContext _adContext;
         private readonly IMapper _mapper;
-        public ScrapData _scrapData { get; set; }
 
         public GetDataFromWebpage(HttpClient httpClient, AdContext adContext, IMapper mapper)
         {
@@ -46,9 +46,7 @@ namespace WebScrapper.Services
                     scrapData.Add(RealEstateMapper(nodes[i], estateType));
                 }
             }
-
             return scrapData;
-            //_scrapData.RealEstates = scrapData.RealEstates;
         }
         public async Task<HtmlDocument> GetAdHtmlDocument(string url, int page)
         {
@@ -122,7 +120,7 @@ namespace WebScrapper.Services
 
         public async Task SaveData()
         {
-            var adsFromWeb = await GetData("https://ingatlan.com/szukites/elado+lakas+budapest+30-50-mFt+4-szoba-felett");
+            var adsFromWeb = await GetData(Constants.FlatUri);
             var adsFromDb = await _adContext.AdModels.ToListAsync();
             var priceFromDb = await _adContext.AdPriceModels.ToListAsync();
             await using var transaction = await _adContext.Database.BeginTransactionAsync();
@@ -151,24 +149,20 @@ namespace WebScrapper.Services
                         .Where(p => p.AdId == adExisted.AdId)
                         .OrderByDescending(p => p.EntryDate)
                         .ToList();
-                    if (adPricesExisted.First().Price != adWeb.Price)
+                    if (adPricesExisted.First().Price == adWeb.Price) continue;
+                    var newPrice = new AdPriceModel()
                     {
-                        var newPrice = new AdPriceModel()
-                        {
-                            AdId = adExisted.AdId,
-                            AdPriceId = Guid.NewGuid(),
-                            OrigAdId = adExisted.OrigAdId,
-                            Price = adWeb.Price,
-                            EntryDate = DateTime.UtcNow
-                        };
-                        _adContext.Add(newPrice);
-                    }
+                        AdId = adExisted.AdId,
+                        AdPriceId = Guid.NewGuid(),
+                        OrigAdId = adExisted.OrigAdId,
+                        Price = adWeb.Price,
+                        EntryDate = DateTime.UtcNow
+                    };
+                    _adContext.Add(newPrice);
                 }
             }
             await _adContext.SaveChangesAsync();
             await transaction.CommitAsync();
-
         }
-
     }
 }
