@@ -27,15 +27,18 @@ namespace WebScrapper.Services
 
         public async Task Init()
         {
-            await SaveData();
+            await SaveData(Constants.Flat, Constants.FlatUri);
+            await SaveData(Constants.House, Constants.House);
+            await SaveData(Constants.Plot, Constants.PlotUri);
+            await SaveData(Constants.PlotOther, Constants.PlotOtherUri);
         }
-        public async Task<List<ScrapData>> GetData(string url)
+        public async Task<List<ScrapData>> GetData(string type, string url)
         {
             var pages = await GetMaxPage(_httpClient, url);
 
             var scrapData = new List<ScrapData>();
 
-            var estateType = Common.Constants.Flat;
+            var estateType = type;
             for (var p = 0; p <= 0; p++)
             {
                 Console.WriteLine($"Dowloaded page: {p + 1}");
@@ -118,9 +121,9 @@ namespace WebScrapper.Services
             return re;
         }
 
-        public async Task SaveData()
+        public async Task SaveData(string type, string uri)
         {
-            var adsFromWeb = await GetData(Constants.FlatUri);
+            var adsFromWeb = await GetData(type, uri);
             var adsFromDb = await _adContext.AdModels.ToListAsync();
             var priceFromDb = await _adContext.AdPriceModels.ToListAsync();
             await using var transaction = await _adContext.Database.BeginTransactionAsync();
