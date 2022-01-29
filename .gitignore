@@ -433,4 +433,4 @@ $RECYCLE.BIN/
 !.vscode/extensions.json
 
 pg_stat/
-pg_stat_tmp/
+env/PostgreSQL/Data/pg_stat_tmp/
