@@ -45,5 +45,35 @@ namespace reat.Controllers
 
             return resAds;
         }
+
+        [HttpGet("GetNewAds")]
+        public async Task<IReadOnlyList<GetNewAdsQueryResult>> GetNewAds()
+        {
+            var resAds = new List<GetNewAdsQueryResult>();
+            var ads = await _adRepository.GetNewAds();
+            foreach (var ad in ads)
+            {
+                var resAd = _mapper.Map<GetNewAdsQueryResult>(ad);
+                resAd.AdPrices = (await _adPriceRepository.GetAllAdPrice()).Where(p => p.AdId == ad.AdId).ToList();
+                resAds.Add(resAd);
+            }
+
+            return resAds;
+        }
+
+        [HttpGet("GetNewInactiveAds")]
+        public async Task<IReadOnlyList<GetNewInactiveAdsQueryResult>> GetNewInactiveAds()
+        {
+            var resAds = new List<GetNewInactiveAdsQueryResult>();
+            var ads = await _adRepository.GetNewInactiveAds();
+            foreach (var ad in ads)
+            {
+                var resAd = _mapper.Map<GetNewInactiveAdsQueryResult>(ad);
+                resAd.AdPrices = (await _adPriceRepository.GetAllAdPrice()).Where(p => p.AdId == ad.AdId).ToList();
+                resAds.Add(resAd);
+            }
+
+            return resAds;
+        }
     }
 }

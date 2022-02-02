@@ -14,7 +14,7 @@ namespace WebScrapper.Services
         public int? PlotSize { get; set; }
         public bool LeaseRights { get; set; }
         public string? Balcony { get; set; }
-        public DateTime? Date { get; set; }
+        public DateTime? Created { get; set; }
     }
 
     //public class Page

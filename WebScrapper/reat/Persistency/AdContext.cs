@@ -7,6 +7,7 @@ namespace reat.Persistency
     {
         public DbSet<AdModel> AdModels { get; set; }
         public DbSet<AdPriceModel> AdPriceModels { get; set; }
+        public DbSet<FetchDate> FetchDates { get; set; }
 
         public AdContext(DbContextOptions options) : base(options)
         {

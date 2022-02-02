@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace WebScrapper.Models
 {
@@ -13,7 +14,10 @@ namespace WebScrapper.Models
         public int? PlotSize { get; set; }
         public bool LeaseRights { get; set; }
         public string? Balcony { get; set; }
-        public DateTime? Date { get; set; }
+        public DateTime Created { get; set; }
+        [Column(TypeName = "date")]
+        public DateTime Updated { get; set; }
+        public bool IsInactive { get; set; }
     }
 }
 

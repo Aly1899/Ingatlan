@@ -32,6 +32,7 @@ namespace WebScrapper.Services
             await SaveData(Constants.Plot, Constants.PlotUri);
             await SaveData(Constants.PlotOther, Constants.PlotOtherUri);
         }
+
         public async Task<List<ScrapData>> GetData(string type, string url)
         {
             var pages = await GetMaxPage(_httpClient, url);
@@ -49,8 +50,10 @@ namespace WebScrapper.Services
                     scrapData.Add(RealEstateMapper(nodes[i], estateType));
                 }
             }
+
             return scrapData;
         }
+
         public async Task<HtmlDocument> GetAdHtmlDocument(string url, int page)
         {
             var fullUrl = $"{url}?page={page}";
@@ -59,18 +62,22 @@ namespace WebScrapper.Services
             {
                 return new HtmlDocument();
             }
+
             var htmlBody = await response.Content.ReadAsStringAsync();
             var htmlDoc = new HtmlDocument();
             htmlDoc.LoadHtml(htmlBody);
             return htmlDoc;
         }
+
         public async Task<int> GetMaxPage(HttpClient _httpClient, string url)
         {
             var htmlDocForPages = await GetAdHtmlDocument(url, 1);
-            var pagesTxt = htmlDocForPages.DocumentNode.SelectSingleNode(".//*[contains(@class,'pagination__page-number')]").InnerText;
+            var pagesTxt = htmlDocForPages.DocumentNode
+                .SelectSingleNode(".//*[contains(@class,'pagination__page-number')]").InnerText;
             int maxPage = Convert.ToInt32(pagesTxt.Split(" ")[3]);
             return maxPage;
         }
+
         public ScrapData RealEstateMapper(HtmlNode node, string estateType)
         {
             var re = new ScrapData();
@@ -104,20 +111,23 @@ namespace WebScrapper.Services
             {
                 re.Area = Convert.ToDecimal(area.InnerText.Split(" ")[1]);
             }
+
             var plotSize = node.SelectSingleNode(".//div[contains(@class , 'listing__data--plot-size')]");
             if (plotSize != null)
             {
                 var plotSizeTxt = plotSize.InnerText.ToString();
                 re.PlotSize = Convert.ToInt32(plotSizeTxt.Substring(0, plotSizeTxt.Count() - 9).Replace(" ", ""));
             }
+
             var balcony = node.SelectSingleNode(".//div[contains(@class,'listing__data--balcony-size')]");
             if (balcony != null)
             {
                 re.Balcony = balcony.InnerText;
             }
+
             var leasing = node.SelectSingleNode(".//div[contains(@class , 'label--alert')]");
             re.LeaseRights = leasing == null ? false : true;
-            re.Date = DateTime.UtcNow;
+            re.Created = DateTime.UtcNow;
             return re;
         }
 
@@ -135,6 +145,7 @@ namespace WebScrapper.Services
                 if (adExisted == null)
                 {
                     var newAd = _mapper.Map<AdModel>(adWeb);
+                    newAd.Updated = DateTime.UtcNow.Date;
                     var newPrice = new AdPriceModel()
                     {
                         AdId = adWeb.AdId,
@@ -152,7 +163,13 @@ namespace WebScrapper.Services
                         .Where(p => p.AdId == adExisted.AdId)
                         .OrderByDescending(p => p.EntryDate)
                         .ToList();
-                    if (adPricesExisted.First().Price == adWeb.Price) continue;
+                    adExisted.Updated = DateTime.UtcNow.Date;
+                    _adContext.Update(adExisted);
+                    if (adPricesExisted.First().Price == adWeb.Price)
+                    {
+                        continue;
+                    }
+
                     var newPrice = new AdPriceModel()
                     {
                         AdId = adExisted.AdId,
@@ -164,8 +181,38 @@ namespace WebScrapper.Services
                     _adContext.Add(newPrice);
                 }
             }
+
             await _adContext.SaveChangesAsync();
             await transaction.CommitAsync();
+        }
+
+        public async Task SetInactiveAds()
+        {
+            var adsFromDb = await _adContext.AdModels.Where(a =>
+                    a.Updated != DateTime.UtcNow.Date &&
+                    !a.IsInactive)
+                .ToListAsync();
+            await using var transaction = await _adContext.Database.BeginTransactionAsync();
+            foreach (var adFromDb in adsFromDb)
+            {
+                adFromDb.IsInactive = true;
+                adFromDb.Updated = DateTime.UtcNow.Date;
+            }
+
+            await _adContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        public async Task SaveFetchDate(string estateType)
+        {
+            var fetchDate = new FetchDate
+            {
+                Id = Guid.NewGuid(),
+                EntryDate = DateTime.UtcNow.Date,
+                EstateType = estateType
+            };
+            await _adContext.AddAsync(fetchDate);
+            await _adContext.SaveChangesAsync();
         }
     }
 }

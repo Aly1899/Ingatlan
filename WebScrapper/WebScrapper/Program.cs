@@ -31,9 +31,14 @@ namespace WebScrapper
                 Console.WriteLine($"We have {re.Length} car(s).");
                 gData = new GetDataFromWebpage(client, context, mapper);
                 await gData.SaveData(Constants.Flat, Constants.FlatUri);
+                await gData.SaveFetchDate(Constants.Flat);
                 await gData.SaveData(Constants.House, Constants.HouseUri);
+                await gData.SaveFetchDate(Constants.House);
                 await gData.SaveData(Constants.Plot, Constants.PlotUri);
+                await gData.SaveFetchDate(Constants.Plot);
                 await gData.SaveData(Constants.PlotOther, Constants.PlotOtherUri);
+                await gData.SaveFetchDate(Constants.PlotOther);
+                await gData.SetInactiveAds();
             }
 
             //var result = await gData.GetData("https://ingatlan.com/szukites/elado+lakas+budapest+30-50-mFt+4-szoba-felett");

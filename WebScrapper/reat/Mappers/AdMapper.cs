@@ -9,6 +9,8 @@ namespace reat.Mappers
         public AdMapperProfile()
         {
             CreateMap<AdModel, GetAdsQueryResult>();
+            CreateMap<AdModel, GetNewAdsQueryResult>();
+            CreateMap<AdModel, GetNewInactiveAdsQueryResult>();
         }
     }
 }
