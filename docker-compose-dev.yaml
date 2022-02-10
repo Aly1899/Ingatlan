@@ -15,8 +15,8 @@ services:
     networks:
       - re-network
     volumes:
-      # - ./env/PostgreSQL/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./env/PostgreSQL/Data:/var/lib/postgresql/data
+      - ./env/PostgreSQL/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./env/PostgreSQL/Data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
